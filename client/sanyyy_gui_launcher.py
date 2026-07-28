@@ -37,6 +37,31 @@ def create_robust_session():
     session.mount("http://", adapter)
     return session
 
+def resolve_agent_script_path():
+    """Finds the absolute path to sanyyy_wake_daemon.py or gemini_live_agent.py in dev or PyInstaller frozen bundle."""
+    base_dirs = [
+        getattr(sys, '_MEIPASS', ''),
+        os.path.dirname(sys.executable),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    ]
+    
+    relative_paths = [
+        os.path.join("scripts", "sanyyy_wake_daemon.py"),
+        os.path.join("_internal", "scripts", "sanyyy_wake_daemon.py"),
+        os.path.join("scripts", "gemini_live_agent.py"),
+        os.path.join("_internal", "scripts", "gemini_live_agent.py")
+    ]
+    
+    for base in base_dirs:
+        if not base:
+            continue
+        for rel in relative_paths:
+            candidate = os.path.join(base, rel)
+            if os.path.exists(candidate):
+                return candidate
+    return None
+
 class SanyyyMultiStepWizard:
     def __init__(self):
         self.root = tk.Tk()
@@ -317,18 +342,12 @@ class SanyyyMultiStepWizard:
             self.root.destroy()
 
         print("🌸 Launching Sanyyy Voice Agent...")
-        base_dir = getattr(sys, '_MEIPASS', os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-        agent_script = os.path.join(base_dir, "scripts", "sanyyy_wake_daemon.py")
-
-        if not os.path.exists(agent_script):
-            agent_script = os.path.join(base_dir, "scripts", "gemini_live_agent.py")
-
-        if not os.path.exists(agent_script):
-            parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-            agent_script = os.path.join(parent_dir, "scripts", "gemini_live_agent.py")
-
-        if os.path.exists(agent_script):
+        agent_script = resolve_agent_script_path()
+        if agent_script and os.path.exists(agent_script):
+            print(f"[+] Executing Agent Script: {agent_script}")
             subprocess.run([sys.executable, agent_script])
+        else:
+            print("[!] Error: Agent script not found in bundle!")
 
 def direct_launch_if_onboarded():
     """Checks if user has already completed onboarding and launches agent directly."""
@@ -346,11 +365,8 @@ def direct_launch_if_onboarded():
             if res.status_code == 200 and res.json().get("allowed", False):
                 print(f"✅ Access verified for SID {sid}. Launching Sanyyy Assistant directly...")
                 os.environ["GEMINI_API_KEY"] = config.get("gemini_api_key", "")
-                base_dir = getattr(sys, '_MEIPASS', os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-                agent_script = os.path.join(base_dir, "scripts", "sanyyy_wake_daemon.py")
-                if not os.path.exists(agent_script):
-                    agent_script = os.path.join(base_dir, "scripts", "gemini_live_agent.py")
-                if os.path.exists(agent_script):
+                agent_script = resolve_agent_script_path()
+                if agent_script and os.path.exists(agent_script):
                     subprocess.run([sys.executable, agent_script])
                     return True
             elif res.status_code == 403:
@@ -360,11 +376,8 @@ def direct_launch_if_onboarded():
             print(f"[!] Access check offline fallback: {e}")
             # Offline fallback: if already onboarded, launch agent
             os.environ["GEMINI_API_KEY"] = config.get("gemini_api_key", "")
-            base_dir = getattr(sys, '_MEIPASS', os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-            agent_script = os.path.join(base_dir, "scripts", "sanyyy_wake_daemon.py")
-            if not os.path.exists(agent_script):
-                agent_script = os.path.join(base_dir, "scripts", "gemini_live_agent.py")
-            if os.path.exists(agent_script):
+            agent_script = resolve_agent_script_path()
+            if agent_script and os.path.exists(agent_script):
                 subprocess.run([sys.executable, agent_script])
                 return True
     return False
