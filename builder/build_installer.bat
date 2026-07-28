@@ -11,12 +11,12 @@ pip install pyinstaller google-genai pyaudio sounddevice requests pillow
 
 echo.
 echo [2/3] Building Sanyyy.exe with PyInstaller...
-python build_windows_exe.py
+python builder/build_windows_exe.py
 
 echo.
 echo [3/3] Compiling SanyyySetup.exe Installer via Inno Setup...
 if exist "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" (
-    "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" inno_setup_script.iss
+    "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" builder/inno_setup_script.iss
     echo.
     echo 🎉 SUCCESS! Your Windows Installer is ready under:
     echo 📁 sanyyyPackage\output\SanyyySetup.exe
