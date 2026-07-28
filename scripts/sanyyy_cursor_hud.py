@@ -57,6 +57,7 @@ def nudge_cursor(dx: int, dy: int):
     point = Quartz.CGPoint(tx, ty)
     move_evt = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventMouseMoved, point, Quartz.kCGMouseButtonLeft)
     Quartz.CGEventPost(Quartz.kCGHIDEventTap, move_evt)
+    time.sleep(0.02)
     print(f"🌸 Sanyyy Euclidean Micro-Nudge: ({cx}, {cy}) ➔ ({tx}, {ty}) | Δx={dx}px, Δy={dy}px | Distance={dist:.1f}px")
 
 def click_bounds_center(x: int, y: int, width: int, height: int):
