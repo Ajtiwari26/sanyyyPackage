@@ -25,7 +25,7 @@ jobs:
       - name: 📦 Install Python Build Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller google-genai pyaudio sounddevice requests pillow
+          pip install -r requirements.txt
 
       - name: 🔨 Build Sanyyy.exe with PyInstaller
         run: |
