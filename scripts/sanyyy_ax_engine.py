@@ -86,6 +86,35 @@ def get_frontmost_app_pid() -> int:
         print(f"⚠️ Error getting frontmost app PID: {e}")
         return None
 
+def get_frontmost_app_info() -> dict:
+    """
+    Get PID, name, and window count of the frontmost macOS application.
+    Used for multi-signal post-action verification — detects app switches
+    that AXTree hash comparison completely misses (e.g. Dock icon clicks).
+    """
+    try:
+        app = NSWorkspace.sharedWorkspace().frontmostApplication()
+        if not app:
+            return {"pid": None, "name": "", "window_count": 0}
+
+        pid = app.processIdentifier()
+        name = app.localizedName() or ""
+
+        # Count visible windows via AXTree
+        window_count = 0
+        try:
+            app_elem = AXUIElementCreateApplication(pid)
+            err, windows = AXUIElementCopyAttributeValue(app_elem, "AXWindows", None)
+            if err == 0 and windows:
+                window_count = len(windows)
+        except Exception:
+            pass
+
+        return {"pid": pid, "name": name, "window_count": window_count}
+    except Exception as e:
+        print(f"⚠️ Error getting frontmost app info: {e}")
+        return {"pid": None, "name": "", "window_count": 0}
+
 def get_ax_attribute(element, attr: str):
     """Safely fetch an attribute value from an AXUIElement"""
     try:
@@ -546,7 +575,6 @@ def get_ui_tree_snapshot(pid: int = None) -> list:
 
     return snapshot
 
-
 def get_ui_tree_hash(pid: int = None) -> str:
     """
     Compute a fast SHA-256 hash of the current AXTree state.
@@ -560,7 +588,6 @@ def get_ui_tree_hash(pid: int = None) -> str:
     # Create a stable string representation (sorted keys for determinism)
     tree_str = json.dumps(snapshot, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(tree_str.encode("utf-8")).hexdigest()[:16]
-
 
 def diff_ax_trees(before: list, after: list) -> dict:
     """
@@ -608,7 +635,6 @@ def diff_ax_trees(before: list, after: list) -> dict:
         "ui_changed": len(added) + len(removed) + len(changed) > 0,
     }
 
-
 def get_ax_tree_delta_summary(before: list, after: list) -> str:
     """
     Human-readable summary of AXTree changes between two snapshots.
@@ -634,21 +660,17 @@ def get_ax_tree_delta_summary(before: list, after: list) -> str:
     header = f"✅ UI Changed ({diff['total_delta']} elements affected):"
     return header + "\n" + "\n".join(parts)
 
-
 # ── AppleScript Priority Router (Phase 1 — Deterministic 10ms Actions) ──
 
-# Apps known to have AppleScript dictionaries (.sdef) for deterministic control
 SCRIPTABLE_APPS = {
     "google chrome", "safari", "finder", "mail", "terminal",
     "music", "messages", "notes", "preview", "system events",
     "system preferences", "system settings", "keynote", "pages", "numbers",
 }
 
-
 def is_app_scriptable(app_name: str) -> bool:
     """Check if a macOS application supports AppleScript automation"""
     return app_name.lower().strip() in SCRIPTABLE_APPS
-
 
 def applescript_open_url(browser: str, url: str) -> str:
     """Open a URL in a scriptable browser using AppleScript (10ms, 100% deterministic)"""
@@ -669,7 +691,6 @@ def applescript_open_url(browser: str, url: str) -> str:
     except Exception as e:
         return f"⚠️ AppleScript error: {e}"
 
-
 def applescript_activate_app(app_name: str) -> str:
     """Activate/bring to front an app using AppleScript (fastest method)"""
     try:
@@ -683,7 +704,6 @@ def applescript_activate_app(app_name: str) -> str:
         return f"⚠️ AppleScript activate failed: {result.stderr.strip()}"
     except Exception as e:
         return f"⚠️ AppleScript error: {e}"
-
 
 def applescript_get_chrome_profile_windows() -> list:
     """Get list of Chrome windows with their profile names via AppleScript"""
@@ -706,7 +726,6 @@ def applescript_get_chrome_profile_windows() -> list:
         return []
     except Exception:
         return []
-
 
 if __name__ == "__main__":
     print("🧪 Testing Sanyyy macOS Accessibility Tree Engine...")
