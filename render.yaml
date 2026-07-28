@@ -9,8 +9,8 @@ services:
       - key: PORT
         value: 10000
       - key: MONGODB_URI
-        value: mongodb+srv://verifysanyyy_db_user:ifiVKYNW2qb7Ga3C@sanyyy.fd9fakj.mongodb.net/?appName=sanyyy
+        sync: false
       - key: SMTP_USER
-        value: ajaytiwari2602@gmail.com
+        sync: false
       - key: SMTP_PASS
-        value: ewtm minb rtwr zidh
+        sync: false

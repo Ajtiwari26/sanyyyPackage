@@ -1,0 +1,12 @@
+# Local Environment Secrets
+.env
+.env.local
+*.env
+
+# Node Dependencies & Build Artifacts
+node_modules/
+dist/
+build/
+*.exe
+*.msi
+*.iss.stat
