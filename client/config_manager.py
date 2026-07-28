@@ -1,6 +1,6 @@
 """
 🌸 SANYYY CONFIG & HARDWARE IDENTIFIER MANAGER
-Handles local configuration storage (%APPDATA%\\Sanyyy\\config.json)
+Handles local configuration storage (%APPDATA%\Sanyyy\config.json)
 and generates unique hardware IDs for device locking.
 """
 
@@ -57,6 +57,6 @@ def save_config(data):
     print(f"[+] Configuration saved to: {CONFIG_FILE}")
 
 def get_backend_url():
-    """Returns license backend API URL (Defaults to live Render backend: https://sanyyy.onrender.com)."""
+    """Returns license backend API URL (Defaults to live Vercel backend: https://backend-teal-chi-51.vercel.app)."""
     cfg = load_config()
-    return cfg.get("backend_url", "https://sanyyy.onrender.com")
+    return cfg.get("backend_url", "https://backend-teal-chi-51.vercel.app")
