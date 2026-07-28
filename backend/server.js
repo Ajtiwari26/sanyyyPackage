@@ -4,6 +4,7 @@
 // Primary Key: 6-digit SID (e.g. 839201)
 // Database: MongoDB Atlas (sanyyy cluster)
 // SMTP Email Auth: Gmail App Password
+// Real-Time Admin Dashboard with Auto-Refresh
 // ==============================================================================
 
 require('dotenv').config();
@@ -77,7 +78,7 @@ function escapeAttr(text) {
 }
 
 // ------------------------------------------------------------------------------
-// 1. API: REQUEST OTP FOR EMAIL VERIFICATION
+// 1. API: REQUEST OTP FOR EMAIL VERIFICATION (Initial Setup on Windows Installation)
 // ------------------------------------------------------------------------------
 app.post('/api/v1/auth/request-otp', async (req, res) => {
     try {
@@ -92,7 +93,7 @@ app.post('/api/v1/auth/request-otp', async (req, res) => {
         // Find existing user by email or phone, or create pending user object
         let user = await User.findOne({ email: email.toLowerCase() });
         if (!user) {
-            // Temporary SID until verified
+            // Temporary 6-digit SID until verified
             const tempSid = generate6DigitCode();
             user = new User({
                 sid: tempSid,
@@ -113,6 +114,7 @@ app.post('/api/v1/auth/request-otp', async (req, res) => {
         }
 
         await user.save();
+        console.log(`[+] NEW USER SETUP INITIATED ON WINDOWS: ${name} (${email}) - SID: ${user.sid}`);
 
         // Send OTP Email via Nodemailer
         const mailOptions = {
@@ -150,7 +152,7 @@ app.post('/api/v1/auth/request-otp', async (req, res) => {
 });
 
 // ------------------------------------------------------------------------------
-// 2. API: VERIFY OTP & GENERATE FINAL SID
+// 2. API: VERIFY OTP & CONFIRM FINAL SID
 // ------------------------------------------------------------------------------
 app.post('/api/v1/auth/verify-otp', async (req, res) => {
     try {
@@ -183,7 +185,7 @@ app.post('/api/v1/auth/verify-otp', async (req, res) => {
         }
 
         await user.save();
-        console.log(`[+] USER VERIFIED: SID [${user.sid}] - Email: ${user.email} - HWID: ${user.hwid}`);
+        console.log(`[+] USER VERIFIED ON WINDOWS PC: SID [${user.sid}] - Email: ${user.email} - HWID: ${user.hwid}`);
 
         res.json({
             success: true,
@@ -319,8 +321,18 @@ app.post('/admin/sid/status', async (req, res) => {
     }
 });
 
+// JSON API endpoint for Real-Time Auto Refresh Dashboard
+app.get('/api/admin/users', async (req, res) => {
+    try {
+        const users = await User.find().sort({ createdAt: -1 });
+        res.json({ success: true, users });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // ------------------------------------------------------------------------------
-// 5. INTERACTIVE ADMIN WEB CONTROL PANEL
+// 5. INTERACTIVE REAL-TIME ADMIN WEB CONTROL PANEL
 // ------------------------------------------------------------------------------
 app.get('/admin', async (req, res) => {
     try {
@@ -367,19 +379,19 @@ app.get('/admin', async (req, res) => {
         });
 
         if (!rows) {
-            rows = `<tr><td colspan="8" style="padding: 25px; text-align: center; color: #999;">No registered Sanyyy users found in MongoDB. Use the form above to add a user!</td></tr>`;
+            rows = `<tr><td colspan="8" style="padding: 25px; text-align: center; color: #999;">No registered Sanyyy users found in MongoDB. Use the form above or install Sanyyy on Windows to create a user!</td></tr>`;
         }
 
         res.send(`
             <!DOCTYPE html>
             <html>
             <head>
-                <title>Sanyyy Admin Dashboard - Manage SIDs & Users</title>
+                <title>Sanyyy Admin Dashboard - Real-Time User Directory</title>
                 <meta charset="utf-8">
                 <style>
                     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; margin: 0; padding: 30px; }
                     .card { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); max-width: 1250px; margin: 0 auto 25px auto; }
-                    h1 { margin-top: 0; color: #1a1a1a; display: flex; align-items: center; gap: 10px; font-size: 22px; }
+                    h1 { margin-top: 0; color: #1a1a1a; display: flex; align-items: center; justify-content: space-between; font-size: 22px; }
                     table { width: 100%; border-collapse: collapse; margin-top: 15px; text-align: left; }
                     th { background: #fafafa; padding: 12px; border-bottom: 2px solid #e8e8e8; color: #555; font-size: 13px; }
                     .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 15px; }
@@ -387,6 +399,11 @@ app.get('/admin', async (req, res) => {
                     button.btn-primary { background: #6C5CE7; color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; }
                     button.btn-primary:hover { background: #5b4cc4; }
                     
+                    /* Live Indicator Badge */
+                    .pulse-badge { display: inline-flex; align-items: center; gap: 6px; background: #E8F8F5; color: #00B894; font-size: 12px; font-weight: bold; padding: 4px 12px; border-radius: 20px; border: 1px solid #B2EBF2; }
+                    .pulse-dot { width: 8px; height: 8px; background: #00B894; border-radius: 50%; display: inline-block; animation: pulse 1.5s infinite; }
+                    @keyframes pulse { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.2); } 100% { opacity: 1; transform: scale(1); } }
+
                     /* Edit Modal Styling */
                     .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
                     .modal-content { background: white; padding: 25px; border-radius: 10px; width: 450px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
@@ -395,7 +412,10 @@ app.get('/admin', async (req, res) => {
             <body>
                 <!-- Top Card: Add New Sanyyy User ID -->
                 <div class="card">
-                    <h1>➕ Create / Add New Sanyyy User ID (SID)</h1>
+                    <h1>
+                        <span>➕ Create / Add New Sanyyy User ID (SID)</span>
+                        <span class="pulse-badge"><span class="pulse-dot"></span> Live Sync Active (Auto-Refresh 10s)</span>
+                    </h1>
                     <p style="color: #666; margin-bottom: 10px; font-size: 13px;">Manually create a new 6-digit Sanyyy ID linked to a user's Name, Email, and Phone Number.</p>
                     <form id="createForm">
                         <div class="form-grid">
@@ -411,7 +431,7 @@ app.get('/admin', async (req, res) => {
                 <!-- Main Table Card: All Users -->
                 <div class="card">
                     <h1>🌸 Sanyyy AI - Live MongoDB SID Directory</h1>
-                    <p style="color: #666; font-size: 13px;">View and edit user details, toggle access (Block / Unblock), or delete SIDs permanently.</p>
+                    <p style="color: #666; font-size: 13px;">View and edit user details, toggle access (Block / Unblock), or delete SIDs permanently. New Windows installations appear here automatically!</p>
                     <table>
                         <thead>
                             <tr>
@@ -461,6 +481,63 @@ app.get('/admin', async (req, res) => {
 
                 <script>
                     document.addEventListener('DOMContentLoaded', () => {
+                        // Automatic Background Live Sync (Refreshes user table every 10 seconds)
+                        setInterval(async () => {
+                            // Don't auto-refresh if modal is open
+                            if (document.getElementById('editModal').style.display === 'flex') return;
+                            try {
+                                const res = await fetch('/api/admin/users');
+                                const data = await res.json();
+                                if (data.success && data.users) {
+                                    renderTableRows(data.users);
+                                }
+                            } catch (e) {
+                                console.warn("Live sync ping error:", e);
+                            }
+                        }, 10000);
+
+                        function renderTableRows(users) {
+                            const tableBody = document.getElementById('userTableBody');
+                            if (!users || users.length === 0) {
+                                tableBody.innerHTML = '<tr><td colspan="8" style="padding: 25px; text-align: center; color: #999;">No registered Sanyyy users found in MongoDB. Use the form above or install Sanyyy on Windows to create a user!</td></tr>';
+                                return;
+                            }
+
+                            let html = '';
+                            users.forEach(u => {
+                                const isBlocked = u.status === 'blocked';
+                                const statusBadge = isBlocked 
+                                    ? '<span style="background: #ff4d4f; color: white; padding: 4px 10px; border-radius: 12px; font-weight: bold; font-size: 12px;">BLOCKED</span>' 
+                                    : '<span style="background: #52c41a; color: white; padding: 4px 10px; border-radius: 12px; font-weight: bold; font-size: 12px;">ACTIVE</span>';
+                                
+                                const targetStatus = isBlocked ? 'active' : 'blocked';
+                                const statusBtnText = isBlocked ? 'Unblock' : 'Block';
+                                const statusBtnBg = isBlocked ? '#52c41a' : '#fa8c16';
+
+                                html += '<tr>' +
+                                    '<td style="padding: 12px; border-bottom: 1px solid #eee;"><strong style="font-size: 16px; color: #6C5CE7; font-family: monospace;">' + escapeHtml(u.sid) + '</strong></td>' +
+                                    '<td style="padding: 12px; border-bottom: 1px solid #eee;"><strong>' + escapeHtml(u.name) + '</strong></td>' +
+                                    '<td style="padding: 12px; border-bottom: 1px solid #eee;">' + escapeHtml(u.email) + '</td>' +
+                                    '<td style="padding: 12px; border-bottom: 1px solid #eee;">' + escapeHtml(u.phone) + '</td>' +
+                                    '<td style="padding: 12px; border-bottom: 1px solid #eee; font-family: monospace; font-size: 11px; color: #555;">' + escapeHtml(u.hwid) + '</td>' +
+                                    '<td style="padding: 12px; border-bottom: 1px solid #eee;">' + statusBadge + '</td>' +
+                                    '<td style="padding: 12px; border-bottom: 1px solid #eee; font-size: 12px; color: #666;">' + new Date(u.lastActiveAt).toLocaleString() + '</td>' +
+                                    '<td style="padding: 12px; border-bottom: 1px solid #eee; white-space: nowrap;">' +
+                                        '<button class="btn-edit" data-sid="' + escapeHtml(u.sid) + '" data-name="' + escapeHtml(u.name) + '" data-email="' + escapeHtml(u.email) + '" data-phone="' + escapeHtml(u.phone) + '" data-hwid="' + escapeHtml(u.hwid) + '" style="background: #1890ff; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; margin-right: 4px;">Edit</button>' +
+                                        '<button class="btn-status" data-sid="' + escapeHtml(u.sid) + '" data-status="' + targetStatus + '" style="background: ' + statusBtnBg + '; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; margin-right: 4px;">' + statusBtnText + '</button>' +
+                                        '<button class="btn-delete" data-sid="' + escapeHtml(u.sid) + '" style="background: #ff4d4f; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold;">Delete</button>' +
+                                    '</td>' +
+                                '</tr>';
+                            });
+
+                            tableBody.innerHTML = html;
+                        }
+
+                        function escapeHtml(str) {
+                            if (!str) return '';
+                            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                        }
+
                         // Create New SID Handler
                         const createForm = document.getElementById('createForm');
                         createForm.addEventListener('submit', async (e) => {
