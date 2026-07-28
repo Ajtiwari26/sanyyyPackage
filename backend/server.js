@@ -1,5 +1,5 @@
 // ==============================================================================
-// 🌸 SANYYY MONGOBD LICENSE, OTP AUTH & SID CONTROL BACKEND
+// 🌸 SANYYY MONGODB LICENSE, OTP AUTH & SID CONTROL BACKEND
 // ==============================================================================
 // Primary Key: 6-digit SID (e.g. 839201)
 // Database: MongoDB Atlas (sanyyy cluster)
@@ -26,6 +26,20 @@ const SMTP_PASS = process.env.SMTP_PASS || "ewtm minb rtwr zidh";
 if (!MONGO_URI) {
     console.error("❌ ERROR: MONGODB_URI environment variable is missing!");
 }
+
+// ------------------------------------------------------------------------------
+// HEALTH CHECK ENDPOINT
+// ------------------------------------------------------------------------------
+app.get(['/health', '/api/health'], (req, res) => {
+    const dbState = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+    res.json({
+        status: 'ok',
+        service: 'sanyyy-backend',
+        database: dbState,
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
+    });
+});
 
 // ------------------------------------------------------------------------------
 // MONGOBD DATABASE SETUP
