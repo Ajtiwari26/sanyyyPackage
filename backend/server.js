@@ -1,9 +1,17 @@
-// ------------------------------------------------------------------------------
-// SANYYY BACKEND ENGINE (Express + Mongoose + Official Google Gmail SMTP + Admin Panel)
-// ------------------------------------------------------------------------------
+// ==============================================================================
+// 🌸 SANYYY MONGOBD LICENSE, OTP AUTH & SID CONTROL BACKEND
+// ==============================================================================
+// Primary Key: 6-digit SID (e.g. 839201)
+// Database: MongoDB Atlas (sanyyy cluster)
+// SMTP Email Auth: Gmail App Password
+// Real-Time Admin Dashboard with Auto-Refresh
+// ==============================================================================
+
+require('dotenv').config();
+
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
+const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
 
 const app = express();
@@ -13,40 +21,36 @@ app.use(cors());
 // Environment Variables (Loaded from process.env or .env file)
 const MONGO_URI = process.env.MONGODB_URI || "mongodb+srv://verifysanyyy_db_user:ifiVKYNW2qb7Ga3C@sanyyy.fd9fakj.mongodb.net/?appName=sanyyy";
 const SMTP_USER = process.env.SMTP_USER || "verify.sanyyy@gmail.com";
-const SMTP_PASS = (process.env.SMTP_PASS || "rnthkmnzziilbovm").replace(/\s+/g, '');
+const SMTP_PASS = process.env.SMTP_PASS || "rnthkmnzziilbovm";
 
 if (!MONGO_URI) {
     console.error("❌ ERROR: MONGODB_URI environment variable is missing!");
 }
 
 // ------------------------------------------------------------------------------
-// DEDICATED HEALTH CHECK ENDPOINT (For Uptime Monitors & Render Diagnostics)
+// HEALTH CHECK ENDPOINT
 // ------------------------------------------------------------------------------
 app.get(['/health', '/api/health'], (req, res) => {
-    const isDbConnected = mongoose.connection.readyState === 1;
-    const healthStatus = {
+    const dbState = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+    res.json({
         status: 'ok',
         service: 'sanyyy-backend',
-        database: isDbConnected ? 'connected' : 'disconnected',
+        database: dbState,
         uptime: process.uptime(),
         timestamp: new Date().toISOString()
-    };
-    
-    if (isDbConnected) {
-        res.status(200).json(healthStatus);
-    } else {
-        res.status(503).json({ ...healthStatus, status: 'degraded' });
-    }
+    });
 });
 
-// Connect to MongoDB Atlas
+// ------------------------------------------------------------------------------
+// MONGOBD DATABASE SETUP
+// ------------------------------------------------------------------------------
 mongoose.connect(MONGO_URI)
     .then(() => console.log('✅ Connected to MongoDB Atlas (Sanyyy Database)'))
-    .catch(err => console.error('❌ MongoDB Connection Error:', err));
+    .catch(err => console.error('❌ MongoDB Connection Error:', err.message));
 
 // User Schema (Primary Key: sid)
 const UserSchema = new mongoose.Schema({
-    sid: { type: String, required: true, unique: true, index: true },
+    sid: { type: String, required: true, unique: true, index: true }, // 6-digit unique SID (e.g. 839201)
     name: { type: String, required: true },
     email: { type: String, required: true, lowercase: true, trim: true },
     phone: { type: String, required: true },
@@ -64,10 +68,15 @@ const User = mongoose.model('User', UserSchema);
 // OFFICIAL GOOGLE GMAIL SMTP TRANSPORTER (verify.sanyyy@gmail.com)
 // ------------------------------------------------------------------------------
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true, // Port 465 SSL connection
     auth: {
         user: SMTP_USER,
         pass: SMTP_PASS
+    },
+    tls: {
+        rejectUnauthorized: false
     }
 });
 
@@ -363,9 +372,13 @@ app.get('/admin', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`=======================================================`);
-    console.log(`🚀 SANYYY MONGODB LICENSE BACKEND RUNNING ON PORT ${PORT}`);
-    console.log(`🌐 Admin Dashboard: http://localhost:${PORT}/admin`);
-    console.log(`=======================================================`);
-});
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`=======================================================`);
+        console.log(`🚀 SANYYY MONGODB LICENSE BACKEND RUNNING ON PORT ${PORT}`);
+        console.log(`🌐 Admin Dashboard: http://localhost:${PORT}/admin`);
+        console.log(`=======================================================`);
+    });
+}
+
+module.exports = app;
