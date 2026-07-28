@@ -6,6 +6,8 @@
 // SMTP Email Auth: Gmail App Password
 // ==============================================================================
 
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
@@ -15,12 +17,14 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// MongoDB Connection URI
+// Environment Variables (Loaded from process.env or .env file)
 const MONGO_URI = process.env.MONGODB_URI || "mongodb+srv://verifysanyyy_db_user:ifiVKYNW2qb7Ga3C@sanyyy.fd9fakj.mongodb.net/?appName=sanyyy";
-
-// Gmail SMTP Credentials
 const SMTP_USER = process.env.SMTP_USER || "ajaytiwari2602@gmail.com";
 const SMTP_PASS = process.env.SMTP_PASS || "ewtm minb rtwr zidh";
+
+if (!MONGO_URI) {
+    console.error("❌ ERROR: MONGODB_URI environment variable is missing!");
+}
 
 // ------------------------------------------------------------------------------
 // MONGOBD DATABASE SETUP
@@ -216,20 +220,23 @@ app.get('/api/v1/auth/check-status', async (req, res) => {
 });
 
 // ------------------------------------------------------------------------------
-// 4. ADMIN APIS: CREATE SID, UPDATE SID, REVOKE / GRANT ACCESS
+// 4. ADMIN APIS: CREATE SID, UPDATE SID, DELETE SID, REVOKE / GRANT ACCESS
 // ------------------------------------------------------------------------------
 
 // Create new SID manually
 app.post('/admin/sid/create', async (req, res) => {
     try {
         const { name, email, phone, hwid, status } = req.body;
-        const newSid = generate6DigitCode();
+        if (!name || !email || !phone) {
+            return res.status(400).json({ error: 'Name, Email, and Phone number are required.' });
+        }
 
+        const newSid = generate6DigitCode();
         const user = new User({
             sid: newSid,
-            name: name || 'Admin Created User',
-            email: email ? email.toLowerCase() : `user${newSid}@sanyyy.app`,
-            phone: phone || '0000000000',
+            name,
+            email: email.toLowerCase(),
+            phone,
             hwid: hwid || 'MANUAL-HWID',
             status: status || 'active'
         });
@@ -241,19 +248,40 @@ app.post('/admin/sid/create', async (req, res) => {
     }
 });
 
-// Update Name or Email on existing SID
+// Update Name, Email, Phone, or HWID on existing SID
 app.post('/admin/sid/update', async (req, res) => {
     try {
-        const { sid, name, email, phone } = req.body;
+        const { sid, name, email, phone, hwid } = req.body;
+        if (!sid) return res.status(400).json({ error: 'SID is required.' });
+
         const user = await User.findOne({ sid });
         if (!user) return res.status(404).json({ error: 'SID not found.' });
 
         if (name) user.name = name;
         if (email) user.email = email.toLowerCase();
         if (phone) user.phone = phone;
+        if (hwid) user.hwid = hwid;
 
         await user.save();
         res.json({ success: true, user });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Delete SID record from MongoDB Atlas
+app.post('/admin/sid/delete', async (req, res) => {
+    try {
+        const { sid } = req.body;
+        if (!sid) return res.status(400).json({ error: 'SID is required.' });
+
+        const result = await User.deleteOne({ sid });
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ error: 'SID not found in database.' });
+        }
+
+        console.log(`[!] ADMIN DELETED SID: ${sid}`);
+        res.json({ success: true, message: `SID ${sid} permanently deleted.` });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -281,7 +309,7 @@ app.post('/admin/sid/status', async (req, res) => {
 });
 
 // ------------------------------------------------------------------------------
-// 5. ADMIN WEB CONTROL PANEL
+// 5. INTERACTIVE ADMIN WEB CONTROL PANEL
 // ------------------------------------------------------------------------------
 app.get('/admin', async (req, res) => {
     try {
@@ -291,58 +319,86 @@ app.get('/admin', async (req, res) => {
         users.forEach(u => {
             const isBlocked = u.status === 'blocked';
             const statusBadge = isBlocked 
-                ? `<span style="background: #ff4d4f; color: white; padding: 4px 10px; border-radius: 12px; font-weight: bold;">BLOCKED</span>` 
-                : `<span style="background: #52c41a; color: white; padding: 4px 10px; border-radius: 12px; font-weight: bold;">ACTIVE</span>`;
+                ? `<span style="background: #ff4d4f; color: white; padding: 4px 10px; border-radius: 12px; font-weight: bold; font-size: 12px;">BLOCKED</span>` 
+                : `<span style="background: #52c41a; color: white; padding: 4px 10px; border-radius: 12px; font-weight: bold; font-size: 12px;">ACTIVE</span>`;
             
-            const actionBtn = isBlocked
-                ? `<button onclick="updateSidStatus('${u.sid}', 'active')" style="background: #52c41a; color: white; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-weight: bold;">Grant Access</button>`
-                : `<button onclick="updateSidStatus('${u.sid}', 'blocked')" style="background: #ff4d4f; color: white; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-weight: bold;">Revoke Access</button>`;
+            const statusBtn = isBlocked
+                ? `<button onclick="updateSidStatus('${u.sid}', 'active')" style="background: #52c41a; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold;">Unblock</button>`
+                : `<button onclick="updateSidStatus('${u.sid}', 'blocked')" style="background: #fa8c16; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold;">Block</button>`;
+
+            const editBtn = `<button onclick="openEditModal('${u.sid}', '${escapeHtml(u.name)}', '${escapeHtml(u.email)}', '${escapeHtml(u.phone)}', '${escapeHtml(u.hwid)}')" style="background: #1890ff; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; margin-right: 4px;">Edit</button>`;
+
+            const deleteBtn = `<button onclick="deleteSid('${u.sid}')" style="background: #ff4d4f; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold;">Delete</button>`;
 
             rows += `<tr>
-                <td style="padding: 12px; border-bottom: 1px solid #eee;"><strong style="font-size: 16px; color: #6C5CE7;">${u.sid}</strong></td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;"><strong style="font-size: 16px; color: #6C5CE7; font-family: monospace;">${u.sid}</strong></td>
                 <td style="padding: 12px; border-bottom: 1px solid #eee;"><strong>${u.name}</strong></td>
                 <td style="padding: 12px; border-bottom: 1px solid #eee;">${u.email}</td>
                 <td style="padding: 12px; border-bottom: 1px solid #eee;">${u.phone}</td>
-                <td style="padding: 12px; border-bottom: 1px solid #eee; font-family: monospace; font-size: 11px;">${u.hwid}</td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee; font-family: monospace; font-size: 11px; color: #555;">${u.hwid}</td>
                 <td style="padding: 12px; border-bottom: 1px solid #eee;">${statusBadge}</td>
                 <td style="padding: 12px; border-bottom: 1px solid #eee; font-size: 12px; color: #666;">${new Date(u.lastActiveAt).toLocaleString()}</td>
-                <td style="padding: 12px; border-bottom: 1px solid #eee;">${actionBtn}</td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee; white-space: nowrap;">${editBtn}${statusBtn} ${deleteBtn}</td>
             </tr>`;
         });
 
         if (!rows) {
-            rows = `<tr><td colspan="8" style="padding: 20px; text-align: center; color: #999;">No registered Sanyyy users yet in MongoDB.</td></tr>`;
+            rows = `<tr><td colspan="8" style="padding: 25px; text-align: center; color: #999;">No registered Sanyyy users found in MongoDB. Use the form above to add a user!</td></tr>`;
         }
 
         res.send(`
             <!DOCTYPE html>
             <html>
             <head>
-                <title>Sanyyy Admin Control Panel (MongoDB)</title>
+                <title>Sanyyy Admin Dashboard - Manage SIDs & Users</title>
                 <meta charset="utf-8">
                 <style>
                     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; margin: 0; padding: 30px; }
-                    .card { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); max-width: 1200px; margin: 0 auto; }
-                    h1 { margin-top: 0; color: #1a1a1a; display: flex; align-items: center; gap: 10px; }
-                    table { width: 100%; border-collapse: collapse; margin-top: 20px; text-align: left; }
-                    th { background: #fafafa; padding: 12px; border-bottom: 2px solid #e8e8e8; color: #555; }
+                    .card { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); max-width: 1250px; margin: 0 auto 25px auto; }
+                    h1 { margin-top: 0; color: #1a1a1a; display: flex; align-items: center; gap: 10px; font-size: 22px; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 15px; text-align: left; }
+                    th { background: #fafafa; padding: 12px; border-bottom: 2px solid #e8e8e8; color: #555; font-size: 13px; }
+                    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 15px; }
+                    input { padding: 10px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px; width: 100%; box-sizing: border-box; }
+                    button.btn-primary { background: #6C5CE7; color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; }
+                    button.btn-primary:hover { background: #5b4cc4; }
+                    
+                    /* Edit Modal Styling */
+                    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
+                    .modal-content { background: white; padding: 25px; border-radius: 10px; width: 450px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
                 </style>
             </head>
             <body>
+                <!-- Top Card: Add New Sanyyy User ID -->
                 <div class="card">
-                    <h1>🌸 Sanyyy AI - MongoDB SID & Access Dashboard</h1>
-                    <p style="color: #666;">Manage 6-digit Sanyyy User IDs (SIDs), view verified email users, and revoke or grant access instantly.</p>
+                    <h1>➕ Create / Add New Sanyyy User ID (SID)</h1>
+                    <p style="color: #666; margin-bottom: 10px; font-size: 13px;">Manually create a new 6-digit Sanyyy ID linked to a user's Name, Email, and Phone Number.</p>
+                    <form id="createForm" onsubmit="createNewSid(event)">
+                        <div class="form-grid">
+                            <input type="text" id="newName" placeholder="User Full Name" required />
+                            <input type="email" id="newEmail" placeholder="Email Address" required />
+                            <input type="text" id="newPhone" placeholder="Phone Number" required />
+                            <input type="text" id="newHwid" placeholder="Hardware ID (Optional)" />
+                            <button type="submit" class="btn-primary">Generate 6-Digit SID</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Main Table Card: All Users -->
+                <div class="card">
+                    <h1>🌸 Sanyyy AI - Live MongoDB SID Directory</h1>
+                    <p style="color: #666; font-size: 13px;">View and edit user details, toggle access (Block / Unblock), or delete SIDs permanently.</p>
                     <table>
                         <thead>
                             <tr>
                                 <th>SID (Primary Key)</th>
-                                <th>User Name</th>
-                                <th>Email Address</th>
-                                <th>Phone Number</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Phone</th>
                                 <th>Hardware ID (HWID)</th>
                                 <th>Status</th>
                                 <th>Last Active</th>
-                                <th>Action</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -351,20 +407,113 @@ app.get('/admin', async (req, res) => {
                     </table>
                 </div>
 
+                <!-- Edit User Details Modal Popup -->
+                <div id="editModal" class="modal">
+                    <div class="modal-content">
+                        <h2 style="margin-top: 0; color: #6C5CE7;">✏️ Edit User Details</h2>
+                        <input type="hidden" id="editSid" />
+                        <div style="margin-bottom: 12px;">
+                            <label style="font-size: 12px; font-weight: bold; color: #555;">Full Name:</label>
+                            <input type="text" id="editName" style="margin-top: 4px;" />
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label style="font-size: 12px; font-weight: bold; color: #555;">Email Address:</label>
+                            <input type="email" id="editEmail" style="margin-top: 4px;" />
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label style="font-size: 12px; font-weight: bold; color: #555;">Phone Number:</label>
+                            <input type="text" id="editPhone" style="margin-top: 4px;" />
+                        </div>
+                        <div style="margin-bottom: 20px;">
+                            <label style="font-size: 12px; font-weight: bold; color: #555;">Hardware ID (HWID):</label>
+                            <input type="text" id="editHwid" style="margin-top: 4px;" />
+                        </div>
+                        <div style="text-align: right; gap: 10px; display: flex; justify-content: flex-end;">
+                            <button type="button" onclick="closeEditModal()" style="background: #ccc; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">Cancel</button>
+                            <button type="button" onclick="saveUserEdit()" class="btn-primary">Save Changes</button>
+                        </div>
+                    </div>
+                </div>
+
                 <script>
+                    async function createNewSid(e) {
+                        e.preventDefault();
+                        const name = document.getElementById('newName').value.trim();
+                        const email = document.getElementById('newEmail').value.trim();
+                        const phone = document.getElementById('newPhone').value.trim();
+                        const hwid = document.getElementById('newHwid').value.trim();
+
+                        const res = await fetch('/admin/sid/create', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name, email, phone, hwid })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            alert("🎉 Success! New 6-Digit SID Created: " + data.sid);
+                            location.reload();
+                        } else {
+                            alert("Error: " + data.error);
+                        }
+                    }
+
+                    function openEditModal(sid, name, email, phone, hwid) {
+                        document.getElementById('editSid').value = sid;
+                        document.getElementById('editName').value = name;
+                        document.getElementById('editEmail').value = email;
+                        document.getElementById('editPhone').value = phone;
+                        document.getElementById('editHwid').value = hwid;
+                        document.getElementById('editModal').style.display = 'flex';
+                    }
+
+                    function closeEditModal() {
+                        document.getElementById('editModal').style.display = 'none';
+                    }
+
+                    async function saveUserEdit() {
+                        const sid = document.getElementById('editSid').value;
+                        const name = document.getElementById('editName').value.trim();
+                        const email = document.getElementById('editEmail').value.trim();
+                        const phone = document.getElementById('editPhone').value.trim();
+                        const hwid = document.getElementById('editHwid').value.trim();
+
+                        const res = await fetch('/admin/sid/update', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ sid, name, email, phone, hwid })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            closeEditModal();
+                            location.reload();
+                        } else {
+                            alert("Error: " + data.error);
+                        }
+                    }
+
                     async function updateSidStatus(sid, status) {
-                        if (confirm("Are you sure you want to " + status.toUpperCase() + " access for SID: " + sid + "?")) {
+                        if (confirm("Change access status for SID " + sid + " to " + status.toUpperCase() + "?")) {
                             const res = await fetch('/admin/sid/status', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ sid, status })
                             });
                             const data = await res.json();
-                            if (data.success) {
-                                location.reload();
-                            } else {
-                                alert("Error: " + data.error);
-                            }
+                            if (data.success) location.reload();
+                            else alert("Error: " + data.error);
+                        }
+                    }
+
+                    async function deleteSid(sid) {
+                        if (confirm("⚠️ PERMANENT DELETE\n\nAre you sure you want to permanently delete SID " + sid + " from MongoDB?")) {
+                            const res = await fetch('/admin/sid/delete', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ sid })
+                            });
+                            const data = await res.json();
+                            if (data.success) location.reload();
+                            else alert("Error: " + data.error);
                         }
                     }
                 </script>
@@ -375,6 +524,11 @@ app.get('/admin', async (req, res) => {
         res.status(500).send("Error loading admin dashboard.");
     }
 });
+
+function escapeHtml(text) {
+    if (!text) return '';
+    return text.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
