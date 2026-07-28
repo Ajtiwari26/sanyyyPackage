@@ -26,7 +26,7 @@ def run_pyinstaller():
         print(f"[!] Error: Client launcher script not found at {client_script}")
         sys.exit(1)
 
-    # Locate scripts directory (package_dir/scripts or fallback to parent project_root)
+    # Locate scripts directory (inside package_dir/scripts or parent fallback)
     scripts_dir = os.path.join(package_dir, "scripts")
     if not os.path.exists(scripts_dir):
         project_root = os.path.dirname(package_dir)
@@ -34,6 +34,10 @@ def run_pyinstaller():
 
     print(f"[+] Using Client Script: {client_script}")
     print(f"[+] Using Scripts Directory: {scripts_dir}")
+
+    if not os.path.exists(scripts_dir):
+        print(f"[!] ERROR: Scripts directory does not exist at {scripts_dir}")
+        sys.exit(1)
 
     # PyInstaller Arguments
     cmd = [
