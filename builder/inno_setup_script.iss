@@ -6,7 +6,7 @@
 ; ==============================================================================
 
 #define MyAppName "Sanyyy AI Assistant"
-#define MyAppVersion "2.0.0"
+#define MyAppVersion "2.0.1"
 #define MyAppPublisher "Coursewaalah Private Limited"
 #define MyAppExeName "Sanyyy.exe"
 

@@ -1,6 +1,6 @@
 {
   "name": "sanyyy-license-backend",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Central MongoDB License, OTP Auth & SID Control Backend for Sanyyy Assistant (Official Gmail Engine)",
   "main": "server.js",
   "scripts": {
