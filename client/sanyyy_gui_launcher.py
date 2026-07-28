@@ -16,10 +16,26 @@ import requests
 import subprocess
 import tkinter as tk
 from tkinter import messagebox, ttk
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # Import local configuration manager
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import config_manager
+
+def create_robust_session():
+    """Create a requests session with automatic 3x retries and exponential backoff for Render cold starts"""
+    session = requests.Session()
+    retries = Retry(
+        total=3,
+        backoff_factor=2,  # Waits 2s, 4s, 8s between retries
+        status_forcelist=[502, 503, 504],
+        raise_on_status=False
+    )
+    adapter = HTTPAdapter(max_retries=retries)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
 
 class SanyyyMultiStepWizard:
     def __init__(self):
@@ -39,6 +55,7 @@ class SanyyyMultiStepWizard:
         self.config = config_manager.load_config()
         self.hwid = config_manager.get_hardware_id()
         self.backend_url = config_manager.get_backend_url()
+        self.http = create_robust_session()
 
         self.current_step = 1
         self.verified_sid = self.config.get("sid", None)
@@ -114,6 +131,13 @@ class SanyyyMultiStepWizard:
         )
         self.btn_verify_otp.pack(fill="x", ipady=8)
 
+    def warm_up_backend(self):
+        """Ping health check endpoint with 35s timeout to wake up sleeping Render instance"""
+        try:
+            self.http.get(f"{self.backend_url}/health", timeout=35)
+        except Exception:
+            pass
+
     def send_otp(self):
         name = self.name_ent.get().strip()
         email = self.email_ent.get().strip()
@@ -123,13 +147,16 @@ class SanyyyMultiStepWizard:
             messagebox.showerror("Error", "Please fill in Name, Email, and Phone number.")
             return
 
-        self.btn_send_otp.config(state="disabled", text="⏳ Sending OTP Email...")
+        self.btn_send_otp.config(state="disabled", text="⏳ Connecting to server (waking up backend)...")
         self.root.update()
 
         try:
-            res = requests.post(f"{self.backend_url}/api/v1/auth/request-otp", json={
+            # First warm up backend in case Render container was sleeping
+            self.warm_up_backend()
+
+            res = self.http.post(f"{self.backend_url}/api/v1/auth/request-otp", json={
                 "name": name, "email": email, "phone": phone, "hwid": self.hwid
-            }, timeout=8)
+            }, timeout=35)
 
             if res.status_code == 200:
                 messagebox.showinfo("OTP Sent", f"A 6-digit OTP code has been sent to {email}.\nPlease check your inbox/spam folder.")
@@ -139,7 +166,7 @@ class SanyyyMultiStepWizard:
                 messagebox.showerror("Error", err)
                 self.btn_send_otp.config(state="normal", text="📩 Resend 6-Digit OTP Code")
         except Exception as e:
-            messagebox.showerror("Network Error", f"Could not connect to backend server:\n{e}")
+            messagebox.showerror("Network Error", f"Could not connect to backend server:\n{e}\n\nPlease verify your internet connection and try again.")
             self.btn_send_otp.config(state="normal", text="📩 Send 6-Digit Verification Code")
 
     def verify_otp(self):
@@ -150,10 +177,13 @@ class SanyyyMultiStepWizard:
             messagebox.showerror("Error", "Please enter the 6-digit OTP received on your email.")
             return
 
+        self.btn_verify_otp.config(state="disabled", text="⏳ Verifying code...")
+        self.root.update()
+
         try:
-            res = requests.post(f"{self.backend_url}/api/v1/auth/verify-otp", json={
+            res = self.http.post(f"{self.backend_url}/api/v1/auth/verify-otp", json={
                 "email": email, "otp": otp, "hwid": self.hwid
-            }, timeout=8)
+            }, timeout=35)
 
             if res.status_code == 200:
                 data = res.json()
@@ -172,11 +202,14 @@ class SanyyyMultiStepWizard:
                 self.render_step()
             elif res.status_code == 403:
                 messagebox.showerror("Access Blocked", "🛑 You have been blocked by the admin. Contact admin to regain access.")
+                self.btn_verify_otp.config(state="normal", text="✅ Verify Code & Continue ➡️")
             else:
                 err = res.json().get("error", "Invalid or expired OTP.")
                 messagebox.showerror("Error", err)
+                self.btn_verify_otp.config(state="normal", text="✅ Verify Code & Continue ➡️")
         except Exception as e:
             messagebox.showerror("Error", f"Verification failed: {e}")
+            self.btn_verify_otp.config(state="normal", text="✅ Verify Code & Continue ➡️")
 
     # --------------------------------------------------------------------------
     # STEP 2: GEMINI API KEY SETUP
@@ -264,7 +297,7 @@ class SanyyyMultiStepWizard:
         tk.Label(sid_frame, text="Your Assigned Sanyyy User ID (SID):", font=("Segoe UI", 10), bg="#E8F8F5", fg="#333").pack()
         tk.Label(sid_frame, text=f"{self.verified_sid or self.config.get('sid', '839201')}", font=("Segoe UI", 24, "bold"), bg="#E8F8F5", fg="#6C5CE7").pack()
 
-        tk.Label(self.container, text="Your license and hardware ID are linked to this SID.\nYou can now launch Sanyyy AI Assistant!", font=("Segoe UI", 9), fg="#555", justify="center").pack(pady=(0, 20))
+        tk.Label(self.container, text="Your license and hardware ID are linked to this SID.\nYou can now launch Sanyyy Assistant!", font=("Segoe UI", 9), fg="#555", justify="center").pack(pady=(0, 20))
 
         btn_launch_now = tk.Button(
             self.container, text="🚀 Launch Sanyyy Assistant Now",
