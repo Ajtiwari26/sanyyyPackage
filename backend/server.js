@@ -65,6 +65,17 @@ function generate6DigitCode() {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+// Helper: Escape HTML entity attributes
+function escapeAttr(text) {
+    if (!text) return '';
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 // ------------------------------------------------------------------------------
 // 1. API: REQUEST OTP FOR EMAIL VERIFICATION
 // ------------------------------------------------------------------------------
@@ -112,7 +123,7 @@ app.post('/api/v1/auth/request-otp', async (req, res) => {
                 <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f6f9;">
                     <div style="max-width: 500px; margin: 0 auto; background: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
                         <h2 style="color: #6C5CE7; text-align: center;">🌸 Sanyyy AI Email Verification</h2>
-                        <p>Hello <strong>${name}</strong>,</p>
+                        <p>Hello <strong>${escapeAttr(name)}</strong>,</p>
                         <p>Thank you for setting up Sanyyy AI Assistant on your Windows device. Please use the following 6-digit verification code to complete your setup:</p>
                         <div style="text-align: center; margin: 25px 0;">
                             <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #00B894; background: #E8F8F5; padding: 10px 20px; border-radius: 8px;">${otp}</span>
@@ -322,23 +333,36 @@ app.get('/admin', async (req, res) => {
                 ? `<span style="background: #ff4d4f; color: white; padding: 4px 10px; border-radius: 12px; font-weight: bold; font-size: 12px;">BLOCKED</span>` 
                 : `<span style="background: #52c41a; color: white; padding: 4px 10px; border-radius: 12px; font-weight: bold; font-size: 12px;">ACTIVE</span>`;
             
-            const statusBtn = isBlocked
-                ? `<button onclick="updateSidStatus('${u.sid}', 'active')" style="background: #52c41a; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold;">Unblock</button>`
-                : `<button onclick="updateSidStatus('${u.sid}', 'blocked')" style="background: #fa8c16; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold;">Block</button>`;
-
-            const editBtn = `<button onclick="openEditModal('${u.sid}', '${escapeHtml(u.name)}', '${escapeHtml(u.email)}', '${escapeHtml(u.phone)}', '${escapeHtml(u.hwid)}')" style="background: #1890ff; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; margin-right: 4px;">Edit</button>`;
-
-            const deleteBtn = `<button onclick="deleteSid('${u.sid}')" style="background: #ff4d4f; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold;">Delete</button>`;
+            const targetStatus = isBlocked ? 'active' : 'blocked';
+            const statusBtnText = isBlocked ? 'Unblock' : 'Block';
+            const statusBtnBg = isBlocked ? '#52c41a' : '#fa8c16';
 
             rows += `<tr>
-                <td style="padding: 12px; border-bottom: 1px solid #eee;"><strong style="font-size: 16px; color: #6C5CE7; font-family: monospace;">${u.sid}</strong></td>
-                <td style="padding: 12px; border-bottom: 1px solid #eee;"><strong>${u.name}</strong></td>
-                <td style="padding: 12px; border-bottom: 1px solid #eee;">${u.email}</td>
-                <td style="padding: 12px; border-bottom: 1px solid #eee;">${u.phone}</td>
-                <td style="padding: 12px; border-bottom: 1px solid #eee; font-family: monospace; font-size: 11px; color: #555;">${u.hwid}</td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;"><strong style="font-size: 16px; color: #6C5CE7; font-family: monospace;">${escapeAttr(u.sid)}</strong></td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;"><strong>${escapeAttr(u.name)}</strong></td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">${escapeAttr(u.email)}</td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">${escapeAttr(u.phone)}</td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee; font-family: monospace; font-size: 11px; color: #555;">${escapeAttr(u.hwid)}</td>
                 <td style="padding: 12px; border-bottom: 1px solid #eee;">${statusBadge}</td>
                 <td style="padding: 12px; border-bottom: 1px solid #eee; font-size: 12px; color: #666;">${new Date(u.lastActiveAt).toLocaleString()}</td>
-                <td style="padding: 12px; border-bottom: 1px solid #eee; white-space: nowrap;">${editBtn}${statusBtn} ${deleteBtn}</td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee; white-space: nowrap;">
+                    <button class="btn-edit" 
+                        data-sid="${escapeAttr(u.sid)}" 
+                        data-name="${escapeAttr(u.name)}" 
+                        data-email="${escapeAttr(u.email)}" 
+                        data-phone="${escapeAttr(u.phone)}" 
+                        data-hwid="${escapeAttr(u.hwid)}"
+                        style="background: #1890ff; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; margin-right: 4px;">Edit</button>
+
+                    <button class="btn-status" 
+                        data-sid="${escapeAttr(u.sid)}" 
+                        data-status="${targetStatus}"
+                        style="background: ${statusBtnBg}; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; margin-right: 4px;">${statusBtnText}</button>
+
+                    <button class="btn-delete" 
+                        data-sid="${escapeAttr(u.sid)}"
+                        style="background: #ff4d4f; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold;">Delete</button>
+                </td>
             </tr>`;
         });
 
@@ -373,7 +397,7 @@ app.get('/admin', async (req, res) => {
                 <div class="card">
                     <h1>➕ Create / Add New Sanyyy User ID (SID)</h1>
                     <p style="color: #666; margin-bottom: 10px; font-size: 13px;">Manually create a new 6-digit Sanyyy ID linked to a user's Name, Email, and Phone Number.</p>
-                    <form id="createForm" onsubmit="createNewSid(event)">
+                    <form id="createForm">
                         <div class="form-grid">
                             <input type="text" id="newName" placeholder="User Full Name" required />
                             <input type="email" id="newEmail" placeholder="Email Address" required />
@@ -401,7 +425,7 @@ app.get('/admin', async (req, res) => {
                                 <th>Actions</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="userTableBody">
                             ${rows}
                         </tbody>
                     </table>
@@ -429,93 +453,132 @@ app.get('/admin', async (req, res) => {
                             <input type="text" id="editHwid" style="margin-top: 4px;" />
                         </div>
                         <div style="text-align: right; gap: 10px; display: flex; justify-content: flex-end;">
-                            <button type="button" onclick="closeEditModal()" style="background: #ccc; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">Cancel</button>
-                            <button type="button" onclick="saveUserEdit()" class="btn-primary">Save Changes</button>
+                            <button type="button" id="btnCancelModal" style="background: #ccc; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">Cancel</button>
+                            <button type="button" id="btnSaveModal" class="btn-primary">Save Changes</button>
                         </div>
                     </div>
                 </div>
 
                 <script>
-                    async function createNewSid(e) {
-                        e.preventDefault();
-                        const name = document.getElementById('newName').value.trim();
-                        const email = document.getElementById('newEmail').value.trim();
-                        const phone = document.getElementById('newPhone').value.trim();
-                        const hwid = document.getElementById('newHwid').value.trim();
+                    document.addEventListener('DOMContentLoaded', () => {
+                        // Create New SID Handler
+                        const createForm = document.getElementById('createForm');
+                        createForm.addEventListener('submit', async (e) => {
+                            e.preventDefault();
+                            const name = document.getElementById('newName').value.trim();
+                            const email = document.getElementById('newEmail').value.trim();
+                            const phone = document.getElementById('newPhone').value.trim();
+                            const hwid = document.getElementById('newHwid').value.trim();
 
-                        const res = await fetch('/admin/sid/create', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ name, email, phone, hwid })
+                            try {
+                                const res = await fetch('/admin/sid/create', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ name, email, phone, hwid })
+                                });
+                                const data = await res.json();
+                                if (data.success) {
+                                    alert("🎉 Success! New 6-Digit SID Created: " + data.sid);
+                                    location.reload();
+                                } else {
+                                    alert("Error: " + (data.error || "Failed to create SID"));
+                                }
+                            } catch (err) {
+                                alert("Network error: " + err.message);
+                            }
                         });
-                        const data = await res.json();
-                        if (data.success) {
-                            alert("🎉 Success! New 6-Digit SID Created: " + data.sid);
-                            location.reload();
-                        } else {
-                            alert("Error: " + data.error);
-                        }
-                    }
 
-                    function openEditModal(sid, name, email, phone, hwid) {
-                        document.getElementById('editSid').value = sid;
-                        document.getElementById('editName').value = name;
-                        document.getElementById('editEmail').value = email;
-                        document.getElementById('editPhone').value = phone;
-                        document.getElementById('editHwid').value = hwid;
-                        document.getElementById('editModal').style.display = 'flex';
-                    }
+                        // Event Delegation for Table Action Buttons
+                        const tableBody = document.getElementById('userTableBody');
+                        tableBody.addEventListener('click', async (e) => {
+                            const target = e.target;
+                            
+                            // 1. Edit Button
+                            if (target.classList.contains('btn-edit')) {
+                                const sid = target.getAttribute('data-sid');
+                                const name = target.getAttribute('data-name');
+                                const email = target.getAttribute('data-email');
+                                const phone = target.getAttribute('data-phone');
+                                const hwid = target.getAttribute('data-hwid');
 
-                    function closeEditModal() {
-                        document.getElementById('editModal').style.display = 'none';
-                    }
+                                document.getElementById('editSid').value = sid;
+                                document.getElementById('editName').value = name;
+                                document.getElementById('editEmail').value = email;
+                                document.getElementById('editPhone').value = phone;
+                                document.getElementById('editHwid').value = hwid;
+                                document.getElementById('editModal').style.display = 'flex';
+                            }
 
-                    async function saveUserEdit() {
-                        const sid = document.getElementById('editSid').value;
-                        const name = document.getElementById('editName').value.trim();
-                        const email = document.getElementById('editEmail').value.trim();
-                        const phone = document.getElementById('editPhone').value.trim();
-                        const hwid = document.getElementById('editHwid').value.trim();
+                            // 2. Block / Unblock Status Button
+                            if (target.classList.contains('btn-status')) {
+                                const sid = target.getAttribute('data-sid');
+                                const status = target.getAttribute('data-status');
+                                if (confirm("Change access status for SID " + sid + " to " + status.toUpperCase() + "?")) {
+                                    try {
+                                        const res = await fetch('/admin/sid/status', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ sid, status })
+                                        });
+                                        const data = await res.json();
+                                        if (data.success) location.reload();
+                                        else alert("Error: " + data.error);
+                                    } catch (err) {
+                                        alert("Network error: " + err.message);
+                                    }
+                                }
+                            }
 
-                        const res = await fetch('/admin/sid/update', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ sid, name, email, phone, hwid })
+                            // 3. Delete Button
+                            if (target.classList.contains('btn-delete')) {
+                                const sid = target.getAttribute('data-sid');
+                                if (confirm("⚠️ PERMANENT DELETE\n\nAre you sure you want to permanently delete SID " + sid + " from MongoDB?")) {
+                                    try {
+                                        const res = await fetch('/admin/sid/delete', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ sid })
+                                        });
+                                        const data = await res.json();
+                                        if (data.success) location.reload();
+                                        else alert("Error: " + data.error);
+                                    } catch (err) {
+                                        alert("Network error: " + err.message);
+                                    }
+                                }
+                            }
                         });
-                        const data = await res.json();
-                        if (data.success) {
-                            closeEditModal();
-                            location.reload();
-                        } else {
-                            alert("Error: " + data.error);
-                        }
-                    }
 
-                    async function updateSidStatus(sid, status) {
-                        if (confirm("Change access status for SID " + sid + " to " + status.toUpperCase() + "?")) {
-                            const res = await fetch('/admin/sid/status', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ sid, status })
-                            });
-                            const data = await res.json();
-                            if (data.success) location.reload();
-                            else alert("Error: " + data.error);
-                        }
-                    }
+                        // Modal Save & Cancel Buttons
+                        document.getElementById('btnCancelModal').addEventListener('click', () => {
+                            document.getElementById('editModal').style.display = 'none';
+                        });
 
-                    async function deleteSid(sid) {
-                        if (confirm("⚠️ PERMANENT DELETE\n\nAre you sure you want to permanently delete SID " + sid + " from MongoDB?")) {
-                            const res = await fetch('/admin/sid/delete', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ sid })
-                            });
-                            const data = await res.json();
-                            if (data.success) location.reload();
-                            else alert("Error: " + data.error);
-                        }
-                    }
+                        document.getElementById('btnSaveModal').addEventListener('click', async () => {
+                            const sid = document.getElementById('editSid').value;
+                            const name = document.getElementById('editName').value.trim();
+                            const email = document.getElementById('editEmail').value.trim();
+                            const phone = document.getElementById('editPhone').value.trim();
+                            const hwid = document.getElementById('editHwid').value.trim();
+
+                            try {
+                                const res = await fetch('/admin/sid/update', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ sid, name, email, phone, hwid })
+                                });
+                                const data = await res.json();
+                                if (data.success) {
+                                    document.getElementById('editModal').style.display = 'none';
+                                    location.reload();
+                                } else {
+                                    alert("Error: " + data.error);
+                                }
+                            } catch (err) {
+                                alert("Network error: " + err.message);
+                            }
+                        });
+                    });
                 </script>
             </body>
             </html>
@@ -524,11 +587,6 @@ app.get('/admin', async (req, res) => {
         res.status(500).send("Error loading admin dashboard.");
     }
 });
-
-function escapeHtml(text) {
-    if (!text) return '';
-    return text.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-}
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
