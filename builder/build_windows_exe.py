@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-🌸 SANYYY WINDOWS EXECUTABLE PACKAGER
+SANYYY WINDOWS EXECUTABLE PACKAGER
 Uses PyInstaller to bundle Python runtime, PyAudio, sounddevice, google-genai,
 Tkinter GUI launcher, and Sanyyy scripts into a standalone Windows directory.
 """
@@ -9,9 +9,13 @@ import os
 import sys
 import subprocess
 
+# Ensure UTF-8 output encoding on Windows PowerShell/CMD
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+
 def run_pyinstaller():
     print("=======================================================")
-    print("🌸 SANYYY WINDOWS EXE BUILDER (PyInstaller)")
+    print("SANYYY WINDOWS EXE BUILDER (PyInstaller)")
     print("=======================================================")
 
     builder_dir = os.path.dirname(os.path.abspath(__file__))
@@ -48,10 +52,10 @@ def run_pyinstaller():
     print(f"[+] Executing Build Command: {' '.join(cmd)}")
     try:
         subprocess.run(cmd, check=True)
-        print("\n✅ SUCCESS! Windows executable built successfully under:")
-        print(f"📁 {os.path.join(package_dir, 'dist', 'Sanyyy')}")
+        print("\nSUCCESS! Windows executable built successfully under:")
+        print(f"Directory: {os.path.join(package_dir, 'dist', 'Sanyyy')}")
     except subprocess.CalledProcessError as e:
-        print(f"\n❌ BUILD FAILED: {e}")
+        print(f"\nBUILD FAILED: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
