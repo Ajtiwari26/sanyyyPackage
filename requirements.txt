@@ -1,6 +1,0 @@
-pyinstaller
-google-genai
-pyaudio
-sounddevice
-requests
-pillow
